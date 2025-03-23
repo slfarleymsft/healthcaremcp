@@ -163,21 +163,6 @@ This is the free version of Healthcare MCP Server with usage limits. For advance
 
 Visit [healthcaremcp.com](https://healthcaremcp.com) to learn more and sign up for a premium account.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Premium Version
-
-This is the free version of Healthcare MCP Server with usage limits. For advanced features and higher usage limits, check out our premium version:
-
-- **Unlimited API calls**
-- **Advanced healthcare data tools**
-- **Custom integrations**
-- **Priority support**
-
-Visit [healthcaremcp.com](https://healthcaremcp.com) to learn more and sign up for a premium account.
-
 ## License
 
 MIT License

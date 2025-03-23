@@ -1,0 +1,52 @@
+name: Test Healthcare MCP Server
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+        
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Check MCP version
+      run: |
+        python -c "import mcp; print(f'MCP version: {mcp.__version__}')"
+        
+    - name: Test server initialization
+      run: |
+        python -c "from src.main import mcp; print('MCP server initialization successful')"
+
+    - name: Run tool tests (without API calls)
+      run: |
+        # Only run basic initialization tests without making real API calls
+        python -c "
+        from src.tools.clinical_trials_tool import ClinicalTrialsTool
+        from src.tools.medical_terminology_tool import MedicalTerminologyTool
+        
+        print('Initializing Clinical Trials Tool...')
+        clinical_trials_tool = ClinicalTrialsTool()
+        print('Clinical Trials Tool initialized successfully')
+        
+        print('Initializing Medical Terminology Tool...')
+        medical_terminology_tool = MedicalTerminologyTool()
+        print('Medical Terminology Tool initialized successfully')
+        "

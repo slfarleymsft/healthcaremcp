@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  healthcare-mcp:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - FDA_API_KEY=${FDA_API_KEY:-}
+      - PUBMED_API_KEY=${PUBMED_API_KEY:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

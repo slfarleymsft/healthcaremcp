@@ -1,72 +1,77 @@
 #!/usr/bin/env python3
-import asyncio
-import sys
 import os
+import sys
 import argparse
+import pytest
 
 # Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from tests.test_fda_tool import test_fda_drug_lookup
-from tests.test_pubmed_tool import test_pubmed_search
-from tests.test_healthfinder_tool import test_health_topics
-from tests.test_clinical_trials_tool import test_clinical_trials_search
-from tests.test_medical_terminology_tool import test_icd_code_lookup
+def run_pytest_tests():
+    """Run all tests using pytest with coverage"""
+    print("\n===== RUNNING ALL HEALTHCARE MCP TESTS WITH PYTEST =====\n")
+    
+    # Run pytest with coverage
+    args = [
+        "-xvs",  # Exit on first failure, verbose, no capture
+        "--cov=src",  # Coverage for src directory
+        "--cov-report=term",  # Terminal coverage report
+        "--cov-report=html:coverage_html",  # HTML coverage report
+        "tests/"  # Run all tests
+    ]
+    
+    # Run pytest
+    result = pytest.main(args)
+    
+    if result == 0:
+        print("\n===== ALL TESTS PASSED =====\n")
+    else:
+        print("\n===== SOME TESTS FAILED =====\n")
+    
+    return result
 
-async def run_all_tests():
-    """Run all tests sequentially"""
-    print("\n=== Running All Tests ===\n")
-    
-    # Run existing tool tests
-    await test_fda_drug_lookup()
-    await test_pubmed_search()
-    await test_health_topics()
-    
-    # Run new tool tests
-    await test_clinical_trials_search()
-    await test_icd_code_lookup()
-    
-    print("\n=== All Tests Completed ===\n")
-
-def test_http_server():
+def test_http_server(port=8000):
     """Test running the HTTP server"""
-    print("\n=== Testing HTTP Server ===\n")
+    print(f"\n=== Testing HTTP Server on port {port} ===\n")
     
     # Import the app
     from src.server import app
     import uvicorn
     
     # Start the server (this will block until Ctrl+C)
-    print("Starting HTTP server on port 8000...")
-    print("Open http://localhost:8000/ in your browser to see the API documentation")
+    print(f"Starting HTTP server on port {port}...")
+    print(f"Open http://localhost:{port}/ in your browser to see the API documentation")
     print("Press Ctrl+C to stop the server\n")
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Run tests for Healthcare MCP")
     parser.add_argument("--server", action="store_true", help="Test HTTP server")
-    parser.add_argument("--fda", action="store_true", help="Test FDA drug lookup tool only")
-    parser.add_argument("--pubmed", action="store_true", help="Test PubMed search tool only")
-    parser.add_argument("--health", action="store_true", help="Test Health Topics tool only")
-    parser.add_argument("--trials", action="store_true", help="Test clinical trials tool only")
-    parser.add_argument("--icd", action="store_true", help="Test ICD-10 tool only")
+    parser.add_argument("--port", type=int, default=8000, help="Port for HTTP server (default: 8000)")
+    parser.add_argument("--pytest", action="store_true", help="Run tests using pytest with coverage")
+    parser.add_argument("--test", type=str, help="Run specific test file or directory")
     args = parser.parse_args()
     
     # Run the appropriate test(s)
     if args.server:
-        test_http_server()
-    elif args.fda:
-        asyncio.run(test_fda_drug_lookup())
-    elif args.pubmed:
-        asyncio.run(test_pubmed_search())
-    elif args.health:
-        asyncio.run(test_health_topics())
-    elif args.trials:
-        asyncio.run(test_clinical_trials_search())
-    elif args.icd:
-        asyncio.run(test_icd_code_lookup())
+        test_http_server(args.port)
+    elif args.pytest:
+        sys.exit(run_pytest_tests())
+    elif args.test:
+        # Run specific test file or directory
+        test_path = args.test
+        if not os.path.exists(test_path):
+            # Try prepending tests/ if not found
+            test_path = os.path.join("tests", args.test)
+            if not os.path.exists(test_path):
+                print(f"Error: Test path '{args.test}' not found")
+                sys.exit(1)
+        
+        # Run pytest on the specific test
+        pytest_args = ["-xvs", test_path]
+        sys.exit(pytest.main(pytest_args))
     else:
-        # Run all tests by default
-        asyncio.run(run_all_tests())
+        # Run all tests by default using pytest
+        sys.exit(run_pytest_tests())

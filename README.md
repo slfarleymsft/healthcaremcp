@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server providing AI assistants with access to healthcare data and medical information tools.
 
+## Overview
+
+Healthcare MCP Server is a specialized server that implements the Model Context Protocol (MCP) to provide AI assistants with access to healthcare data and medical information tools. It enables AI models to retrieve accurate, up-to-date medical information from authoritative sources.
+
 ## Features
 
 - **FDA Drug Information**: Search and retrieve comprehensive drug information from the FDA database
@@ -9,6 +13,12 @@ A Model Context Protocol (MCP) server providing AI assistants with access to hea
 - **Health Topics**: Access evidence-based health information from Health.gov
 - **Clinical Trials**: Search for ongoing and completed clinical trials
 - **Medical Terminology**: Look up ICD-10 codes and medical terminology definitions
+- **Caching**: Efficient caching system with connection pooling to reduce API calls and improve performance
+- **Usage Tracking**: Anonymous usage tracking to monitor API usage
+- **Error Handling**: Robust error handling and logging
+- **Multiple Interfaces**: Support for both stdio (for CLI) and HTTP/SSE interfaces
+- **API Documentation**: Interactive API documentation with Swagger UI
+- **Comprehensive Testing**: Extensive test suite with pytest and coverage reporting
 
 ## Installation
 
@@ -62,26 +72,36 @@ The easiest way to install this server is through the Cline Marketplace:
 
 - **HTTP/SSE mode** (for web clients):
   ```bash
-  python run.py --http
+  python run.py --http --port 8000
   ```
 
 ### Testing the Tools
 
-You can test the MCP tools individually or all together:
+You can test the MCP tools using the new pytest-based test suite:
 
 ```bash
-# Run all tests
+# Run all tests with pytest and coverage
+python -m tests.run_tests --pytest
+
+# Run a specific test file
+python -m tests.run_tests --test test_fda_tool.py
+
+# Test the HTTP server
+python -m tests.run_tests --server --port 8000
+```
+
+For backward compatibility, you can still run the old tests:
+
+```bash
+# Run all tests (old style)
 python -m tests.run_tests
 
-# Test individual tools
+# Test individual tools (old style)
 python -m tests.run_tests --fda        # Test FDA drug lookup
 python -m tests.run_tests --pubmed     # Test PubMed search
 python -m tests.run_tests --health     # Test Health Topics
 python -m tests.run_tests --trials     # Test Clinical Trials search
 python -m tests.run_tests --icd        # Test ICD-10 code lookup
-
-# Test the HTTP server
-python -m tests.run_tests --server
 ```
 
 ## API Reference

@@ -1,14 +1,18 @@
-import requests
-import hashlib
-from src.services.cache_service import CacheService
+import logging
+from typing import Dict, Any, List, Optional
+from src.tools.base_tool import BaseTool
 
-class ClinicalTrialsTool:
-    def __init__(self):
-        """Initialize Clinical Trials tool with caching"""
-        self.base_url = "https://clinicaltrials.gov/api/v2/studies"
-        self.cache = CacheService(db_path="healthcare_cache.db")
+logger = logging.getLogger("healthcare-mcp")
+
+class ClinicalTrialsTool(BaseTool):
+    """Tool for searching clinical trials from ClinicalTrials.gov"""
     
-    async def search_trials(self, condition, status="recruiting", max_results=10):
+    def __init__(self):
+        """Initialize Clinical Trials tool with base URL and caching"""
+        super().__init__(cache_db_path="healthcare_cache.db")
+        self.base_url = "https://clinicaltrials.gov/api/v2/studies"
+    
+    async def search_trials(self, condition: str, status: str = "recruiting", max_results: int = 10) -> Dict[str, Any]:
         """
         Search for clinical trials by condition, status, and other parameters
         
@@ -16,61 +20,91 @@ class ClinicalTrialsTool:
             condition: Medical condition or disease to search for
             status: Trial status (recruiting, completed, etc.)
             max_results: Maximum number of results to return
+            
+        Returns:
+            Dictionary containing clinical trial information or error details
         """
+        # Input validation
+        if not condition:
+            return self._format_error_response("Condition is required")
+        
+        # Validate max_results
+        try:
+            max_results = int(max_results)
+            if max_results < 1:
+                max_results = 10
+            elif max_results > 100:
+                max_results = 100  # Limit to reasonable number
+        except (ValueError, TypeError):
+            max_results = 10
+        
         # Create cache key
-        cache_key = f"clinical_trials_{condition}_{status}_{max_results}"
-        cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+        cache_key = self._get_cache_key("clinical_trials", condition, status, max_results)
         
         # Check cache first
         cached_result = self.cache.get(cache_key)
         if cached_result and cached_result.get('status') == 'success':
+            logger.info(f"Cache hit for clinical trials search: {condition}, status={status}")
             return cached_result
             
         try:
-            return await self._search_clinicaltrials_gov(condition, status, max_results, cache_key)
-        except requests.RequestException as e:
-            result = {
-                "status": "error",
-                "error_message": f"Error searching clinical trials: {str(e)}"
+            logger.info(f"Searching clinical trials for condition: {condition}, status={status}, max_results={max_results}")
+            
+            # Set up parameters according to the API spec
+            params = {
+                "query.cond": condition,  # Use query.cond for condition search
+                "format": "json",
+                "pageSize": max_results,
+                "countTotal": "true"
             }
+            
+            # Add status filter if provided
+            if status and status.lower() != "all":
+                # Map status to API format if needed
+                status_map = {
+                    "recruiting": "RECRUITING",
+                    "not_recruiting": "ACTIVE_NOT_RECRUITING",
+                    "completed": "COMPLETED",
+                    "active": "RECRUITING"
+                }
+                mapped_status = status_map.get(status.lower(), status.upper())
+                params["filter.overallStatus"] = mapped_status
+                logger.debug(f"Mapped status '{status}' to '{mapped_status}'")
+            
+            # Make the request
+            data = await self._make_request(self.base_url, params=params)
+            
+            # Process the response
+            studies = data.get('studies', [])
+            trials = await self._process_trials(studies)
+            
+            # Create result object
+            result = self._format_success_response(
+                condition=condition,
+                search_status=status,
+                total_results=data.get('totalCount', 0),
+                trials=trials
+            )
+            
+            # Cache for 24 hours (86400 seconds)
+            self.cache.set(cache_key, result, ttl=86400)
+            
             return result
+                
         except Exception as e:
-            # Catch any other unexpected errors
-            result = {
-                "status": "error",
-                "error_message": f"Unexpected error: {str(e)}"
-            }
-            return result
+            logger.error(f"Error searching clinical trials: {str(e)}")
+            return self._format_error_response(f"Error searching clinical trials: {str(e)}")
     
-    async def _search_clinicaltrials_gov(self, condition, status, max_results, cache_key):
-        """Search ClinicalTrials.gov API"""
-        # Set up parameters according to the API spec
-        params = {
-            "query.cond": condition,  # Use query.cond for condition search
-            "format": "json",
-            "pageSize": max_results,
-            "countTotal": "true"
-        }
+    async def _process_trials(self, studies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Process clinical trial data from ClinicalTrials.gov API response
         
-        # Add status filter if provided
-        if status and status.lower() != "all":
-            # Map status to API format if needed
-            status_map = {
-                "recruiting": "RECRUITING",
-                "not_recruiting": "ACTIVE_NOT_RECRUITING",
-                "completed": "COMPLETED",
-                "active": "RECRUITING"
-            }
-            mapped_status = status_map.get(status.lower(), status.upper())
-            params["filter.overallStatus"] = mapped_status
-        
-        # Make request
-        response = requests.get(self.base_url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        
-        # Format the response
-        studies = data.get('studies', [])
+        Args:
+            studies: List of study data from ClinicalTrials.gov API
+            
+        Returns:
+            List of processed trial data
+        """
         trials = []
         
         for study in studies:
@@ -82,6 +116,7 @@ class ClinicalTrialsTool:
             conditions_module = protocol_section.get('conditionsModule', {})
             contacts_locations = protocol_section.get('contactsLocationsModule', {})
             sponsor_module = protocol_section.get('sponsorCollaboratorsModule', {})
+            description_module = protocol_section.get('descriptionModule', {})
             
             # Get phases as a string
             phases = design_module.get('phases', [])
@@ -101,33 +136,38 @@ class ClinicalTrialsTool:
                 "study_type": design_module.get('studyType', ''),
                 "conditions": conditions_module.get('conditions', []),
                 "locations": [],
-                "sponsor": sponsor_name
+                "sponsor": sponsor_name,
+                "url": f"https://clinicaltrials.gov/study/{identification.get('nctId', '')}"
             }
+            
+            # Add brief summary if available
+            if 'briefSummary' in description_module:
+                trial["brief_summary"] = description_module.get('briefSummary', '')
             
             # Add locations if available
             locations = contacts_locations.get('locations', [])
             
             for loc in locations:
                 location = {
-                    "facility": loc.get('facility', ''),
+                    "facility": loc.get('facility', {}).get('name', ''),
                     "city": loc.get('city', ''),
                     "state": loc.get('state', ''),
                     "country": loc.get('country', '')
                 }
                 trial["locations"].append(location)
             
+            # Add eligibility information if available
+            eligibility_module = protocol_section.get('eligibilityModule', {})
+            if eligibility_module:
+                eligibility = {
+                    "gender": eligibility_module.get('sex', ''),
+                    "min_age": eligibility_module.get('minimumAge', ''),
+                    "max_age": eligibility_module.get('maximumAge', ''),
+                    "healthy_volunteers": eligibility_module.get('healthyVolunteers', '')
+                }
+                trial["eligibility"] = eligibility
+            
             trials.append(trial)
         
-        result = {
-            "status": "success",
-            "condition": condition,
-            "search_status": status,
-            "total_results": data.get('totalCount', 0),
-            "trials": trials
-        }
-        
-        # Cache for 24 hours (86400 seconds)
-        self.cache.set(cache_key, result, ttl=86400)
-        
-        return result
+        return trials
     

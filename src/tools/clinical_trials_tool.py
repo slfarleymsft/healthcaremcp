@@ -43,7 +43,7 @@ class ClinicalTrialsTool(BaseTool):
         cache_key = self._get_cache_key("clinical_trials", condition, status, max_results)
         
         # Check cache first
-        cached_result = await self.cache.get(cache_key)
+        cached_result = self.cache.get(cache_key)
         if cached_result and cached_result.get('status') == 'success':
             logger.info(f"Cache hit for clinical trials search: {condition}, status={status}")
             return cached_result
@@ -91,7 +91,7 @@ class ClinicalTrialsTool(BaseTool):
             )
             
             # Cache for 24 hours (86400 seconds)
-            await self.cache.set(cache_key, result, ttl=86400)
+            self.cache.set(cache_key, result, ttl=86400)
             
             return result
                 

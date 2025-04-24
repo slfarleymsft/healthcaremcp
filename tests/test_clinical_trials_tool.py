@@ -105,8 +105,8 @@ async def test_clinical_trials_search_with_mock():
     # Initialize the tool
     tool = ClinicalTrialsTool()
     
-    # Mock the http_client.get method
-    with patch.object(tool.http_client, 'get', return_value=mock_response):
+    # Mock the _make_request method instead of http_client.get
+    with patch.object(tool, '_make_request', return_value=mock_response.json.return_value):
         # Test searching for diabetes trials
         result = await tool.search_trials("diabetes", "recruiting", 3)
         
@@ -142,16 +142,22 @@ async def test_clinical_trials_search_error_handling():
     assert result['status'] == 'error'
     assert 'Condition is required' in result['error_message']
     
-    # Test with invalid max_results
-    result = await tool.search_trials("diabetes", "recruiting", -5)
-    assert result['status'] == 'success'  # Should correct the value, not error
+    # Test with invalid max_results - mock the _make_request to avoid API errors
+    with patch.object(tool, '_make_request', return_value={"studies": [], "totalCount": 0}):
+        result = await tool.search_trials("diabetes", "recruiting", -5)
+        assert result['status'] == 'success'  # Should correct the value, not error
     
-    # Test with HTTP error
+    # Test with HTTP error - use a unique condition string to avoid cache hits
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = Exception("API Error")
     
-    with patch.object(tool.http_client, 'get', return_value=mock_response):
-        result = await tool.search_trials("diabetes")
+    # Create a new tool instance with a unique condition string
+    new_tool = ClinicalTrialsTool()
+    
+    # Mock the _make_request method to raise an exception
+    with patch.object(new_tool, '_make_request', side_effect=Exception("API Error")):
+        # Use a unique condition string to avoid cache hits
+        result = await new_tool.search_trials("unique_test_condition_123")
         assert result['status'] == 'error'
         assert 'Error searching clinical trials' in result['error_message']
 

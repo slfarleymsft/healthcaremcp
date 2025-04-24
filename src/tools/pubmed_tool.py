@@ -9,9 +9,9 @@ logger = logging.getLogger("healthcare-mcp")
 class PubMedTool(BaseTool):
     """Tool for searching medical literature in PubMed database"""
     
-    def __init__(self):
+    def __init__(self, cache_db_path: str = "healthcare_cache.db"):
         """Initialize the PubMed tool with API key and base URL"""
-        super().__init__(cache_db_path="healthcare_cache.db")
+        super().__init__(cache_db_path=cache_db_path)
         self.api_key = os.getenv("PUBMED_API_KEY", "")
         self.base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
     

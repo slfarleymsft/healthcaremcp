@@ -11,6 +11,7 @@ class ClinicalTrialsTool(BaseTool):
         """Initialize Clinical Trials tool with base URL and caching"""
         super().__init__(cache_db_path="healthcare_cache.db")
         self.base_url = "https://clinicaltrials.gov/api/v2/studies"
+        # Note: http_client is initialized in BaseTool class
     
     async def search_trials(self, condition: str, status: str = "recruiting", max_results: int = 10) -> Dict[str, Any]:
         """
@@ -50,31 +51,34 @@ class ClinicalTrialsTool(BaseTool):
         try:
             logger.info(f"Searching clinical trials for condition: {condition}, status={status}, max_results={max_results}")
             
-            # Set up parameters according to the API spec
+            # Map status to API format if needed
+            status_map = {
+                "recruiting": "RECRUITING",
+                "not_recruiting": "ACTIVE_NOT_RECRUITING",
+                "completed": "COMPLETED",
+                "active": "RECRUITING"
+            }
+            mapped_status = status_map.get(status.lower(), status.upper()) if status.lower() != "all" else None
+            
+            # Construct the API URL
             params = {
-                "query.cond": condition,  # Use query.cond for condition search
-                "format": "json",
+                "query.cond": condition,
                 "pageSize": max_results,
-                "countTotal": "true"
+                "format": "json"
             }
             
-            # Add status filter if provided
-            if status and status.lower() != "all":
-                # Map status to API format if needed
-                status_map = {
-                    "recruiting": "RECRUITING",
-                    "not_recruiting": "ACTIVE_NOT_RECRUITING",
-                    "completed": "COMPLETED",
-                    "active": "RECRUITING"
-                }
-                mapped_status = status_map.get(status.lower(), status.upper())
-                params["filter.overallStatus"] = mapped_status
-                logger.debug(f"Mapped status '{status}' to '{mapped_status}'")
+            # Add status filter if not "all"
+            if mapped_status:
+                params["query.status"] = mapped_status
             
-            # Make the request
-            data = await self._make_request(self.base_url, params=params)
+            # Make the API request
+            response = await self.http_client.get(self.base_url, params=params)
+            response.raise_for_status()
             
-            # Process the response
+            # Parse the response
+            data = response.json()
+            
+            # Process the studies
             studies = data.get('studies', [])
             trials = await self._process_trials(studies)
             

@@ -1,6 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better layer caching
 COPY requirements.txt .
@@ -11,6 +19,14 @@ COPY . .
 
 # Make run.py executable
 RUN chmod +x run.py
+
+# Create data directory for database
+RUN mkdir -p /app/data
+
+# Set environment variables
+ENV DATA_DIR=/app/data
+ENV CACHE_DB_PATH=/app/data/cache.db
+ENV USAGE_DB_PATH=/app/data/usage.db
 
 # Expose the port the app runs on
 EXPOSE 8000

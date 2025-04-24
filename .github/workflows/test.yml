@@ -28,6 +28,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests pandas fastapi uvicorn pydantic sqlalchemy beautifulsoup4 python-dotenv pytest
         
+    - name: Set up writable directory
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/data
+        echo "DATA_DIR=$GITHUB_WORKSPACE/data" >> $GITHUB_ENV
+        
     - name: Check MCP module
       run: |
         python -c "print('MCP module loaded successfully')"
@@ -41,10 +46,15 @@ jobs:
         # Only run basic initialization tests without making real API calls
         python -c "
         import requests
+        import os
         from src.tools.clinical_trials_tool import ClinicalTrialsTool
+        
+        # Use the writable directory for cache
+        cache_path = os.path.join(os.environ.get('DATA_DIR', '.'), 'test_cache.db')
         
         print('Initializing Clinical Trials Tool...')
         clinical_trials_tool = ClinicalTrialsTool()
+        clinical_trials_tool.cache_db_path = cache_path
         print('Clinical Trials Tool initialized successfully')
         print('Verifying correct API parameter usage (query.recrs)...')
         assert 'query.recrs' in open('src/tools/clinical_trials_tool.py').read()

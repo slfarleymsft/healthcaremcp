@@ -8,9 +8,13 @@ logger = logging.getLogger("healthcare-mcp")
 class ClinicalTrialsTool(BaseTool):
     """Tool for searching clinical trials from ClinicalTrials.gov"""
     
-    def __init__(self):
-        """Initialize Clinical Trials tool with base URL and caching"""
-        super().__init__(cache_db_path="healthcare_cache.db")
+    def __init__(self, cache_db_path=None):
+        """Initialize Clinical Trials tool with base URL and caching
+        
+        Args:
+            cache_db_path: Optional path to the cache database file
+        """
+        super().__init__(cache_db_path=cache_db_path or "healthcare_cache.db")
         self.base_url = "https://clinicaltrials.gov/api/v2/studies"
         self.http_client = requests  # Initialize http_client attribute
     

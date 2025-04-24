@@ -60,7 +60,7 @@ class ClinicalTrialsTool(BaseTool):
             }
             mapped_status = status_map.get(status.lower(), status.upper()) if status.lower() != "all" else None
             
-            # Construct the API URL
+            # Construct the API URL with correct parameters
             params = {
                 "query.cond": condition,
                 "pageSize": max_results,
@@ -69,7 +69,7 @@ class ClinicalTrialsTool(BaseTool):
             
             # Add status filter if not "all"
             if mapped_status:
-                params["query.status"] = mapped_status
+                params["query.recrs"] = mapped_status
             
             # Make the API request using the base tool's _make_request method
             data = await self._make_request(

@@ -9,9 +9,10 @@ class HealthFinderTool(BaseTool):
     """Tool for accessing health information from Health.gov"""
     
     def __init__(self):
-        """Initialize the HealthFinder tool with base URL"""
+        """Initialize the HealthFinder tool with base URL and HTTP client"""
         super().__init__(cache_db_path="healthcare_cache.db")
         self.base_url = "https://health.gov/myhealthfinder/api/v3"
+        # The http_client is initialized in the BaseTool class
     
     async def get_health_topics(self, topic: str, language: str = "en") -> Dict[str, Any]:
         """
@@ -45,23 +46,21 @@ class HealthFinderTool(BaseTool):
         try:
             logger.info(f"Fetching health information for topic: {topic}, language={language}")
             
-            # Search for health topics
+            # Construct the API URL
+            endpoint = f"{self.base_url}/topicsearch.json"
             params = {
                 "keyword": topic,
                 "lang": language
             }
             
-            # Make the request
-            endpoint = f"{self.base_url}/topicsearch.json"
-            data = await self._make_request(endpoint, params=params)
+            # Make the API request
+            response = await self.http_client.get(endpoint, params=params)
+            response.raise_for_status()
             
-            # Process and return the response
-            if "Result" not in data:
-                logger.warning("Invalid response from Health.gov API: 'Result' not in response")
-                return self._format_error_response("Invalid response from Health.gov API")
+            # Parse the response
+            result_data = response.json().get("Result", {})
             
-            # Extract and process the results
-            result_data = data["Result"]
+            # Extract topics from the response
             topics = await self._extract_topics(result_data)
             
             # Create result object

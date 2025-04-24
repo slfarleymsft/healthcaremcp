@@ -1,4 +1,5 @@
 import logging
+import requests
 from typing import Dict, Any, List, Optional
 from src.tools.base_tool import BaseTool
 
@@ -11,7 +12,7 @@ class ClinicalTrialsTool(BaseTool):
         """Initialize Clinical Trials tool with base URL and caching"""
         super().__init__(cache_db_path="healthcare_cache.db")
         self.base_url = "https://clinicaltrials.gov/api/v2/studies"
-        # Note: http_client is initialized in BaseTool class
+        self.http_client = requests  # Initialize http_client attribute
     
     async def search_trials(self, condition: str, status: str = "recruiting", max_results: int = 10) -> Dict[str, Any]:
         """

@@ -12,7 +12,9 @@ class HealthFinderTool(BaseTool):
         """Initialize the HealthFinder tool with base URL and HTTP client"""
         super().__init__(cache_db_path="healthcare_cache.db")
         self.base_url = "https://health.gov/myhealthfinder/api/v3"
-        # The http_client is initialized in the BaseTool class
+        # Initialize http_client
+        import requests
+        self.http_client = requests
     
     async def get_health_topics(self, topic: str, language: str = "en") -> Dict[str, Any]:
         """
@@ -53,12 +55,15 @@ class HealthFinderTool(BaseTool):
                 "lang": language
             }
             
-            # Make the API request
-            response = await self.http_client.get(endpoint, params=params)
-            response.raise_for_status()
+            # Make the API request using the base tool's _make_request method
+            data = await self._make_request(
+                url=endpoint,
+                method="GET",
+                params=params
+            )
             
             # Parse the response
-            result_data = response.json().get("Result", {})
+            result_data = data.get("Result", {})
             
             # Extract topics from the response
             topics = await self._extract_topics(result_data)

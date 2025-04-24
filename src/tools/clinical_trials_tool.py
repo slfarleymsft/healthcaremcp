@@ -43,7 +43,7 @@ class ClinicalTrialsTool(BaseTool):
         cache_key = self._get_cache_key("clinical_trials", condition, status, max_results)
         
         # Check cache first
-        cached_result = self.cache.get(cache_key)
+        cached_result = await self.cache.get(cache_key)
         if cached_result and cached_result.get('status') == 'success':
             logger.info(f"Cache hit for clinical trials search: {condition}, status={status}")
             return cached_result
@@ -71,12 +71,12 @@ class ClinicalTrialsTool(BaseTool):
             if mapped_status:
                 params["query.status"] = mapped_status
             
-            # Make the API request
-            response = await self.http_client.get(self.base_url, params=params)
-            response.raise_for_status()
-            
-            # Parse the response
-            data = response.json()
+            # Make the API request using the base tool's _make_request method
+            data = await self._make_request(
+                url=self.base_url,
+                method="GET",
+                params=params
+            )
             
             # Process the studies
             studies = data.get('studies', [])
@@ -91,7 +91,7 @@ class ClinicalTrialsTool(BaseTool):
             )
             
             # Cache for 24 hours (86400 seconds)
-            self.cache.set(cache_key, result, ttl=86400)
+            await self.cache.set(cache_key, result, ttl=86400)
             
             return result
                 

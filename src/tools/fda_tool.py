@@ -8,9 +8,9 @@ logger = logging.getLogger("healthcare-mcp")
 class FDATool(BaseTool):
     """Tool for accessing FDA drug information"""
     
-    def __init__(self):
+    def __init__(self, cache_db_path: str = "healthcare_cache.db"):
         """Initialize the FDA tool with API key and base URL"""
-        super().__init__(cache_db_path="healthcare_cache.db")
+        super().__init__(cache_db_path=cache_db_path)
         self.api_key = os.getenv("FDA_API_KEY", "")
         self.base_url = "https://api.fda.gov/drug"
     

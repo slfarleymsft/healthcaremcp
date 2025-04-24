@@ -23,6 +23,11 @@ RUN chmod +x run.py
 # Create data directory for database
 RUN mkdir -p /app/data
 
+# Set environment variables
+ENV DATA_DIR=/app/data
+ENV CACHE_DB_PATH=/app/data/cache.db
+ENV USAGE_DB_PATH=/app/data/usage.db
+
 # Expose the port the app runs on
 EXPOSE 8000
 

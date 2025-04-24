@@ -35,6 +35,17 @@ class UsageService:
         
         # Initialize the database
         self._init_db()
+        
+    async def init(self) -> None:
+        """
+        Initialize the usage service asynchronously
+        
+        This method is called during application startup
+        """
+        # Ensure database directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
+        
+        logger.info(f"Usage service initialized with database at {self.db_path}")
     
     def _get_connection(self) -> sqlite3.Connection:
         """
@@ -288,3 +299,20 @@ class UsageService:
         except sqlite3.Error as e:
             logger.error(f"Error in cleanup_old_data(): {str(e)}")
             return 0
+            
+    async def close(self) -> None:
+        """
+        Close the usage service and clean up resources
+        
+        This method is called during application shutdown
+        """
+        try:
+            # Close database connection if it exists
+            if self.db_path in self._connection_pools:
+                with self._connection_locks[self.db_path]:
+                    conn = self._connection_pools[self.db_path]
+                    conn.close()
+                    del self._connection_pools[self.db_path]
+                    logger.info(f"Closed database connection for {self.db_path}")
+        except Exception as e:
+            logger.error(f"Error closing usage service: {str(e)}")

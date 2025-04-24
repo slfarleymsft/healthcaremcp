@@ -1,10 +1,16 @@
 # Import tools
+import os
 from src.tools.fda_tool import FDATool
 from src.tools.pubmed_tool import PubMedTool
 
+# Set up data directory
+data_dir = os.environ.get('DATA_DIR', '/app/data')
+os.makedirs(data_dir, exist_ok=True)
+cache_db_path = os.path.join(data_dir, 'healthcare_cache.db')
+
 # Initialize tools
-fda_tool = FDATool()
-pubmed_tool = PubMedTool()
+fda_tool = FDATool(cache_db_path=cache_db_path)
+pubmed_tool = PubMedTool(cache_db_path=cache_db_path)
 
 # Define tool actions for registration
 fda_drug_lookup = {

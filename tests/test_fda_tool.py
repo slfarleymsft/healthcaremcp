@@ -1,108 +1,244 @@
-import asyncio
-import sys
+import pytest
 import os
-import json
-
-# Add project root to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+import tempfile
+from unittest.mock import patch, MagicMock
 from src.tools.fda_tool import FDATool
 
-async def test_fda_drug_lookup():
-    """Test the FDA drug lookup functionality"""
-    print("\n=== Testing FDA Drug Lookup ===")
+class TestFDATool:
+    """Test suite for FDATool class"""
     
-    # Initialize the tool
-    tool = FDATool()
+    @pytest.fixture
+    def fda_tool(self):
+        """Create an FDATool instance with a temporary cache database"""
+        # Set up environment variable for testing
+        os.environ["FDA_API_KEY"] = "test_api_key"
+        
+        # Create a tool with mocked cache
+        tool = FDATool()
+        
+        # Mock the cache get and set methods
+        tool.cache.get = MagicMock(return_value=None)
+        tool.cache.set = MagicMock(return_value=True)
+        
+        yield tool
+        
+        # Clean up
+        if "FDA_API_KEY" in os.environ:
+            del os.environ["FDA_API_KEY"]
     
-    # Test looking up a common drug with general info
-    print("\nLooking up general info for 'aspirin'...")
-    result = await tool.lookup_drug("aspirin", "general")
+    def test_init(self, fda_tool):
+        """Test FDATool initialization"""
+        assert fda_tool.api_key == "test_api_key"
+        assert fda_tool.base_url == "https://api.fda.gov/drug"
+        assert fda_tool.cache is not None
     
-    # Pretty print the result
-    print(f"Status: {result['status']}")
-    print(f"Drug name: {result.get('drug_name', '')}")
-    print(f"Total results: {result.get('total_results', 0)}")
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_general(self, mock_request, fda_tool):
+        """Test looking up general drug information"""
+        # Mock response for general drug info
+        mock_response = {
+            "meta": {
+                "results": {
+                    "total": 1
+                }
+            },
+            "results": [
+                {
+                    "generic_name": "ASPIRIN",
+                    "brand_name": "BAYER",
+                    "product_type": "HUMAN PRESCRIPTION DRUG"
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        # Test lookup
+        result = await fda_tool.lookup_drug("aspirin", "general")
+        
+        # Verify result
+        assert result["status"] == "success"
+        assert result["drug_name"] == "aspirin"
+        assert result["total_results"] == 1
+        assert len(result["results"]) == 1
+        assert result["results"][0]["generic_name"] == "ASPIRIN"
+        
+        # Verify API call
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert args[0] == "https://api.fda.gov/drug/ndc.json"
+        assert kwargs["params"]["search"] == "generic_name:aspirin+OR+brand_name:aspirin"
+        assert kwargs["params"]["limit"] == 3
+        assert kwargs["params"]["api_key"] == "test_api_key"
     
-    # Show drug info
-    drugs = result.get('results', [])
-    print(f"Returned {len(drugs)} drugs:")
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_label(self, mock_request, fda_tool):
+        """Test looking up drug label information"""
+        # Mock response for label info
+        mock_response = {
+            "meta": {
+                "results": {
+                    "total": 1
+                }
+            },
+            "results": [
+                {
+                    "openfda": {
+                        "generic_name": ["ASPIRIN"],
+                        "brand_name": ["BAYER"]
+                    },
+                    "indications_and_usage": ["Pain relief"],
+                    "warnings": ["May cause stomach bleeding"]
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        # Test lookup
+        result = await fda_tool.lookup_drug("aspirin", "label")
+        
+        # Verify result
+        assert result["status"] == "success"
+        assert result["drug_name"] == "aspirin"
+        assert result["total_results"] == 1
+        assert len(result["results"]) == 1
+        assert result["results"][0]["openfda"]["generic_name"][0] == "ASPIRIN"
+        
+        # Verify API call
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert args[0] == "https://api.fda.gov/drug/label.json"
+        assert kwargs["params"]["search"] == "openfda.generic_name:aspirin+OR+openfda.brand_name:aspirin"
     
-    for i, drug in enumerate(drugs):
-        if i >= 2:  # Limit to first 2 results for readability
-            print(f"\n...and {len(drugs) - 2} more results")
-            break
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_adverse_events(self, mock_request, fda_tool):
+        """Test looking up drug adverse events"""
+        # Mock response for adverse events
+        mock_response = {
+            "meta": {
+                "results": {
+                    "total": 1
+                }
+            },
+            "results": [
+                {
+                    "patient": {
+                        "drug": [
+                            {
+                                "medicinalproduct": "ASPIRIN",
+                                "drugindication": "HEADACHE"
+                            }
+                        ],
+                        "reaction": [
+                            {
+                                "reactionmeddrapt": "NAUSEA"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        # Test lookup
+        result = await fda_tool.lookup_drug("aspirin", "adverse_events")
+        
+        # Verify result
+        assert result["status"] == "success"
+        assert result["drug_name"] == "aspirin"
+        assert result["total_results"] == 1
+        assert len(result["results"]) == 1
+        assert result["results"][0]["patient"]["drug"][0]["medicinalproduct"] == "ASPIRIN"
+        
+        # Verify API call
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert args[0] == "https://api.fda.gov/drug/event.json"
+        assert kwargs["params"]["search"] == "patient.drug.medicinalproduct:aspirin"
+    
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_invalid_type(self, mock_request, fda_tool):
+        """Test looking up drug with invalid search type"""
+        # Mock response
+        mock_response = {
+            "meta": {
+                "results": {
+                    "total": 1
+                }
+            },
+            "results": [{"generic_name": "ASPIRIN"}]
+        }
+        mock_request.return_value = mock_response
+        
+        # Test lookup with invalid type (should default to general)
+        result = await fda_tool.lookup_drug("aspirin", "invalid_type")
+        
+        # Verify result
+        assert result["status"] == "success"
+        
+        # Verify API call used general endpoint
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert args[0] == "https://api.fda.gov/drug/ndc.json"
+    
+    async def test_lookup_drug_empty_name(self, fda_tool):
+        """Test looking up drug with empty name"""
+        result = await fda_tool.lookup_drug("")
+        
+        # Verify error response
+        assert result["status"] == "error"
+        assert "Drug name is required" in result["error_message"]
+    
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_api_error(self, mock_request, fda_tool):
+        """Test handling API errors"""
+        # Mock API error
+        mock_request.side_effect = Exception("API connection error")
+        
+        # Test lookup
+        result = await fda_tool.lookup_drug("aspirin")
+        
+        # Verify error response
+        assert result["status"] == "error"
+        assert "Error fetching drug information" in result["error_message"]
+    
+    @patch('src.tools.base_tool.BaseTool._make_request')
+    async def test_lookup_drug_caching(self, mock_request, fda_tool):
+        """Test caching functionality"""
+        # Mock response
+        mock_response = {
+            "meta": {
+                "results": {
+                    "total": 1
+                }
+            },
+            "results": [{"generic_name": "ASPIRIN"}]
+        }
+        mock_request.return_value = mock_response
+        
+        # Setup cache behavior
+        cache_data = {}
+        
+        def mock_cache_get(key):
+            return cache_data.get(key)
             
-        print(f"\n{i+1}. Generic name: {drug.get('generic_name', 'Unknown')}")
-        print(f"   Brand name: {drug.get('brand_name', 'Unknown')}")
-        if 'manufacturer_name' in drug.get('openfda', {}):
-            print(f"   Manufacturer: {drug['openfda']['manufacturer_name'][0] if len(drug['openfda']['manufacturer_name']) > 0 else 'Unknown'}")
-        if 'route' in drug:
-            print(f"   Route: {', '.join(drug.get('route', ['Unknown']))}")
-        if 'dosage_form' in drug:
-            print(f"   Dosage form: {drug.get('dosage_form', 'Unknown')}")
-    
-    # Test looking up a drug with label info
-    print("\nLooking up label info for 'metformin'...")
-    result = await tool.lookup_drug("metformin", "label")
-    
-    # Pretty print the result
-    print(f"Status: {result['status']}")
-    print(f"Drug name: {result.get('drug_name', '')}")
-    print(f"Total results: {result.get('total_results', 0)}")
-    
-    # Show drug labels (limited)
-    labels = result.get('results', [])
-    print(f"Returned {len(labels)} labels:")
-    
-    for i, label in enumerate(labels):
-        if i >= 1:  # Limit to first result for readability
-            print(f"\n...and {len(labels) - 1} more results")
-            break
+        def mock_cache_set(key, value, ttl=None):
+            cache_data[key] = value
+            return True
             
-        print(f"\n{i+1}. Drug: {label.get('openfda', {}).get('generic_name', ['Unknown'])[0] if 'generic_name' in label.get('openfda', {}) else 'Unknown'}")
+        fda_tool.cache.get.side_effect = mock_cache_get
+        fda_tool.cache.set.side_effect = mock_cache_set
         
-        # Show warnings if available
-        if 'warnings' in label:
-            print(f"   Warnings: {label['warnings'][:150]}...")
+        # First call should hit the API
+        result1 = await fda_tool.lookup_drug("aspirin")
+        assert result1["status"] == "success"
+        assert mock_request.call_count == 1
         
-        # Show indications if available
-        if 'indications_and_usage' in label:
-            print(f"   Indications: {label['indications_and_usage'][:150]}...")
-    
-    # Test looking up a drug with adverse events
-    print("\nLooking up adverse events for 'ibuprofen'...")
-    result = await tool.lookup_drug("ibuprofen", "adverse_events")
-    
-    # Pretty print the result
-    print(f"Status: {result['status']}")
-    print(f"Drug name: {result.get('drug_name', '')}")
-    print(f"Total results: {result.get('total_results', 0)}")
-    
-    # Show adverse events (limited)
-    events = result.get('results', [])
-    print(f"Returned {len(events)} adverse event reports:")
-    
-    if len(events) > 0:
-        print(f"\nShowing sample adverse events:")
+        # Second call should use cache
+        result2 = await fda_tool.lookup_drug("aspirin")
+        assert result2["status"] == "success"
+        assert mock_request.call_count == 1  # Still 1, not 2
         
-        # Get the first event
-        event = events[0]
-        
-        # Show patient info if available
-        if 'patient' in event:
-            patient = event['patient']
-            print(f"  Patient age: {patient.get('patientonsetage', 'Unknown')}")
-            print(f"  Patient sex: {patient.get('patientsex', 'Unknown')}")
-            
-            # Show reactions if available
-            if 'reaction' in patient:
-                reactions = patient['reaction']
-                print(f"  Reactions ({len(reactions)}):")
-                for i, reaction in enumerate(reactions[:3]):
-                    print(f"    - {reaction.get('reactionmeddrapt', 'Unknown')}")
-                if len(reactions) > 3:
-                    print(f"    - ...and {len(reactions) - 3} more")
-
-if __name__ == "__main__":
-    asyncio.run(test_fda_drug_lookup())
+        # Different drug should hit API again
+        result3 = await fda_tool.lookup_drug("ibuprofen")
+        assert result3["status"] == "success"
+        assert mock_request.call_count == 2

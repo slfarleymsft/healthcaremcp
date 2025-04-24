@@ -120,6 +120,16 @@ async def get_usage_stats(ctx: Context):
     """
     return usage_service.get_monthly_usage(session_id)
 
+@mcp.tool()
+async def get_all_usage_stats(ctx: Context):
+    """
+    Get overall usage statistics for all sessions
+    
+    Returns:
+        A summary of API usage across all sessions
+    """
+    return usage_service.get_usage_stats()
+
 if __name__ == "__main__":
     # Using FastMCP's CLI
     import sys

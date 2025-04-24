@@ -2,14 +2,17 @@ import asyncio
 import sys
 import os
 import json
+import pytest
+from unittest.mock import patch, MagicMock
 
 # Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.tools.clinical_trials_tool import ClinicalTrialsTool
 
+@pytest.mark.asyncio
 async def test_clinical_trials_search():
-    """Test the clinical trials search functionality"""
+    """Test the clinical trials search functionality with real API"""
     print("\n=== Testing Clinical Trials Search ===")
     
     # Initialize the tool
@@ -46,6 +49,111 @@ async def test_clinical_trials_search():
                 print(f"     - {loc.get('facility', 'Unknown')} ({loc.get('city', '')}, {loc.get('state', '')})")
             if len(locations) > 2:
                 print(f"     - ...and {len(locations) - 2} more")
+
+@pytest.mark.asyncio
+async def test_clinical_trials_search_with_mock():
+    """Test the clinical trials search functionality with mock data"""
+    # Create a mock response
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "studies": [
+            {
+                "protocolSection": {
+                    "identificationModule": {
+                        "nctId": "NCT12345678",
+                        "briefTitle": "Test Diabetes Trial"
+                    },
+                    "statusModule": {
+                        "overallStatus": "RECRUITING"
+                    },
+                    "designModule": {
+                        "studyType": "INTERVENTIONAL",
+                        "phases": ["PHASE_2", "PHASE_3"]
+                    },
+                    "conditionsModule": {
+                        "conditions": ["Type 2 Diabetes", "Obesity"]
+                    },
+                    "contactsLocationsModule": {
+                        "locations": [
+                            {
+                                "facility": {"name": "Test Hospital"},
+                                "city": "Boston",
+                                "state": "Massachusetts",
+                                "country": "United States"
+                            }
+                        ]
+                    },
+                    "sponsorCollaboratorsModule": {
+                        "leadSponsor": {"name": "Test Pharma Inc."}
+                    },
+                    "descriptionModule": {
+                        "briefSummary": "A test trial for diabetes treatment"
+                    },
+                    "eligibilityModule": {
+                        "sex": "ALL",
+                        "minimumAge": "18 Years",
+                        "maximumAge": "75 Years",
+                        "healthyVolunteers": "No"
+                    }
+                }
+            }
+        ],
+        "totalCount": 1
+    }
+    
+    # Initialize the tool
+    tool = ClinicalTrialsTool()
+    
+    # Mock the http_client.get method
+    with patch.object(tool.http_client, 'get', return_value=mock_response):
+        # Test searching for diabetes trials
+        result = await tool.search_trials("diabetes", "recruiting", 3)
+        
+        # Verify the result
+        assert result['status'] == 'success'
+        assert result['total_results'] == 1
+        assert len(result['trials']) == 1
+        
+        trial = result['trials'][0]
+        assert trial['nct_id'] == 'NCT12345678'
+        assert trial['title'] == 'Test Diabetes Trial'
+        assert trial['status'] == 'RECRUITING'
+        assert trial['phase'] == 'PHASE_2, PHASE_3'
+        assert trial['study_type'] == 'INTERVENTIONAL'
+        assert trial['conditions'] == ['Type 2 Diabetes', 'Obesity']
+        assert trial['sponsor'] == 'Test Pharma Inc.'
+        assert trial['brief_summary'] == 'A test trial for diabetes treatment'
+        assert len(trial['locations']) == 1
+        assert trial['locations'][0]['facility'] == 'Test Hospital'
+        assert trial['locations'][0]['city'] == 'Boston'
+        assert trial['eligibility']['gender'] == 'ALL'
+        assert trial['eligibility']['min_age'] == '18 Years'
+        assert trial['eligibility']['max_age'] == '75 Years'
+
+@pytest.mark.asyncio
+async def test_clinical_trials_search_error_handling():
+    """Test error handling in clinical trials search"""
+    # Initialize the tool
+    tool = ClinicalTrialsTool()
+    
+    # Test with empty condition
+    result = await tool.search_trials("")
+    assert result['status'] == 'error'
+    assert 'Condition is required' in result['error_message']
+    
+    # Test with invalid max_results
+    result = await tool.search_trials("diabetes", "recruiting", -5)
+    assert result['status'] == 'success'  # Should correct the value, not error
+    
+    # Test with HTTP error
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = Exception("API Error")
+    
+    with patch.object(tool.http_client, 'get', return_value=mock_response):
+        result = await tool.search_trials("diabetes")
+        assert result['status'] == 'error'
+        assert 'Error searching clinical trials' in result['error_message']
 
 if __name__ == "__main__":
     asyncio.run(test_clinical_trials_search())

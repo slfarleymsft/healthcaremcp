@@ -1,27 +1,53 @@
 import os
-import requests
-import hashlib
-from src.services.cache_service import CacheService
+import logging
+from typing import Dict, Any, Optional
+from src.tools.base_tool import BaseTool
 
-class FDATool:
+logger = logging.getLogger("healthcare-mcp")
+
+class FDATool(BaseTool):
+    """Tool for accessing FDA drug information"""
+    
     def __init__(self):
+        """Initialize the FDA tool with API key and base URL"""
+        super().__init__(cache_db_path="healthcare_cache.db")
         self.api_key = os.getenv("FDA_API_KEY", "")
         self.base_url = "https://api.fda.gov/drug"
-        self.cache = CacheService(db_path="healthcare_cache.db")
     
-    async def lookup_drug(self, drug_name, search_type="general"):
-        """Look up drug information from the FDA database with caching"""
+    async def lookup_drug(self, drug_name: str, search_type: str = "general") -> Dict[str, Any]:
+        """
+        Look up drug information from the FDA database with caching
+        
+        Args:
+            drug_name: Name of the drug to search for
+            search_type: Type of information to retrieve: 'label', 'adverse_events', or 'general'
+            
+        Returns:
+            Dictionary containing drug information or error details
+        """
+        # Input validation
+        if not drug_name:
+            return self._format_error_response("Drug name is required")
+        
+        # Normalize search type
+        search_type = search_type.lower()
+        if search_type not in ["label", "adverse_events", "general"]:
+            search_type = "general"
+        
         # Create cache key
-        cache_key = f"fda_drug_{search_type}_{drug_name}"
-        cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+        cache_key = self._get_cache_key("fda_drug", search_type, drug_name)
         
         # Check cache first
         cached_result = self.cache.get(cache_key)
         if cached_result:
+            logger.info(f"Cache hit for FDA drug lookup: {drug_name}, {search_type}")
             return cached_result
         
         # If not in cache, fetch from API
         try:
+            logger.info(f"Fetching FDA drug information for {drug_name}, type: {search_type}")
+            
+            # Determine endpoint and query based on search type
             if search_type == "label":
                 endpoint = f"{self.base_url}/label.json"
                 query = f"openfda.generic_name:{drug_name}+OR+openfda.brand_name:{drug_name}"
@@ -32,30 +58,31 @@ class FDATool:
                 endpoint = f"{self.base_url}/ndc.json"
                 query = f"generic_name:{drug_name}+OR+brand_name:{drug_name}"
             
-            api_url = f"{endpoint}?search={query}&limit=3"
-            if self.api_key:
-                api_url += f"&api_key={self.api_key}"
-            
-            response = requests.get(api_url)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Process and cache the response
-            result = {
-                "status": "success",
-                "drug_name": drug_name,
-                "results": data.get("results", []),
-                "total_results": data.get("meta", {}).get("results", {}).get("total", 0)
+            # Build API URL
+            params = {
+                "search": query,
+                "limit": 3
             }
+            
+            # Add API key if available
+            if self.api_key:
+                params["api_key"] = self.api_key
+            
+            # Make the request
+            data = await self._make_request(endpoint, params=params)
+            
+            # Process the response
+            result = self._format_success_response(
+                drug_name=drug_name,
+                results=data.get("results", []),
+                total_results=data.get("meta", {}).get("results", {}).get("total", 0)
+            )
             
             # Cache for 24 hours (86400 seconds)
             self.cache.set(cache_key, result, ttl=86400)
             
             return result
                 
-        except requests.RequestException as e:
-            result = {
-                "status": "error",
-                "error_message": f"Error fetching drug information: {str(e)}"
-            }
-            return result
+        except Exception as e:
+            logger.error(f"Error fetching FDA drug information: {str(e)}")
+            return self._format_error_response(f"Error fetching drug information: {str(e)}")

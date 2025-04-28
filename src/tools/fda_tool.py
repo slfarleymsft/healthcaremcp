@@ -50,13 +50,13 @@ class FDATool(BaseTool):
             # Determine endpoint and query based on search type
             if search_type == "label":
                 endpoint = f"{self.base_url}/label.json"
-                query = f"openfda.generic_name:{drug_name}+OR+openfda.brand_name:{drug_name}"
+                query = f"openfda.generic_name:{drug_name} OR openfda.brand_name:{drug_name}"
             elif search_type == "adverse_events":
                 endpoint = f"{self.base_url}/event.json"
                 query = f"patient.drug.medicinalproduct:{drug_name}"
             else:  # general
                 endpoint = f"{self.base_url}/ndc.json"
-                query = f"generic_name:{drug_name}+OR+brand_name:{drug_name}"
+                query = f"generic_name:{drug_name} OR brand_name:{drug_name}"
             
             # Build API URL
             params = {
@@ -77,7 +77,7 @@ class FDATool(BaseTool):
                 results=data.get("results", []),
                 total_results=data.get("meta", {}).get("results", {}).get("total", 0)
             )
-            
+            logger.info(f"FDA tool return object: {result}")
             # Cache for 24 hours (86400 seconds)
             self.cache.set(cache_key, result, ttl=86400)
             

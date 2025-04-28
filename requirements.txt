@@ -7,3 +7,4 @@ Requests==2.32.3
 slowapi==0.1.9
 structlog==25.2.0
 uvicorn==0.34.2
+pytest-asyncio

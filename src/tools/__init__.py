@@ -4,7 +4,7 @@ from src.tools.fda_tool import FDATool
 from src.tools.pubmed_tool import PubMedTool
 
 # Set up data directory
-data_dir = os.environ.get('DATA_DIR', '/app/data')
+data_dir = os.environ.get('DATA_DIR', os.path.join(os.getcwd(), 'data'))
 os.makedirs(data_dir, exist_ok=True)
 cache_db_path = os.path.join(data_dir, 'healthcare_cache.db')
 

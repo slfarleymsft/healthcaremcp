@@ -70,9 +70,10 @@ class BaseTool:
             # Set up headers if not provided
             if headers is None:
                 headers = {}
-            
-            # Make the request
-            logger.debug(f"Making {method} request to {url}")
+            # Add a default User-Agent if not present
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = 'healthcare-mcp/1.0 (Linux)'
+            logger.debug(f"Making {method} request to {url} with params={params} headers={headers}")
             response = requests.request(
                 method=method,
                 url=url,
@@ -82,15 +83,14 @@ class BaseTool:
                 json=json_data,
                 timeout=timeout
             )
-            
-            # Raise for HTTP errors
+            logger.debug(f"FDA API response status: {response.status_code}")
+            logger.debug(f"FDA API response body: {response.text}")
             response.raise_for_status()
-            
-            # Return JSON response
             return response.json()
-            
         except requests.RequestException as e:
             logger.error(f"Request error: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"FDA API error response: {e.response.text}")
             raise
     
     def _format_error_response(self, error_message: str) -> Dict[str, str]:

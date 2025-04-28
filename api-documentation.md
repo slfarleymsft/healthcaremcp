@@ -66,6 +66,11 @@ Use the test file to test this tool:
 python -m tests.run_tests --fda
 ```
 
+**Change Log (April 28, 2025):**
+
+- Fixed an issue where the FDA Drug Lookup endpoint would return a 500 Internal Server Error due to incorrect query formatting for the FDA API. The query now uses spaces around `OR` (e.g., `openfda.generic_name:aspirin OR openfda.brand_name:aspirin`), matching the FDA API's requirements.
+- Integration tests confirm the endpoint now returns the correct drug label information for valid requests.
+
 ### 2. PubMed Search
 
 ```

@@ -24,7 +24,7 @@ from src.dependencies import (
 )
 
 # Set up structured logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 structlog.configure(
     processors=[
         structlog.stdlib.filter_by_level,

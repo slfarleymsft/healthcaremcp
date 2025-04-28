@@ -22,13 +22,7 @@ Healthcare MCP Server is a specialized server that implements the Model Context 
 
 ## Installation
 
-### Quick Install (Cline Marketplace)
-
-The easiest way to install this server is through the Cline Marketplace:
-
-1. Open Cline and click the Extensions button in the toolbar
-2. Search for "Healthcare MCP"
-3. Click Install
+ 
 
 ### Manual Installation
 

@@ -72,9 +72,9 @@ class ClinicalTrialsTool(BaseTool):
                 "format": "json"
             }
             
-            # Add status filter if not "all"
-            if mapped_status:
-                params["query.recrs"] = mapped_status
+            # Add status filter if not 'all'
+            if status.lower() != "all" and mapped_status:
+                params["filter.overallStatus"] = mapped_status
             
             # Make the API request using the base tool's _make_request method
             data = await self._make_request(
@@ -179,4 +179,3 @@ class ClinicalTrialsTool(BaseTool):
             trials.append(trial)
         
         return trials
-    

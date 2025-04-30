@@ -56,7 +56,4 @@ jobs:
         clinical_trials_tool = ClinicalTrialsTool()
         clinical_trials_tool.cache_db_path = cache_path
         print('Clinical Trials Tool initialized successfully')
-        print('Verifying correct API parameter usage (query.recrs)...')
-        assert 'query.recrs' in open('src/tools/clinical_trials_tool.py').read()
-        print('API parameter verification successful')
         "

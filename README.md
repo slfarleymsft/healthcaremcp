@@ -374,7 +374,7 @@ This MCP server utilizes several publicly available healthcare APIs:
 - [ClinicalTrials.gov API](https://clinicaltrials.gov/data-api/about-api)
 - [NLM Clinical Table Search Service for ICD-10-CM](https://clinicaltables.nlm.nih.gov/apidoc/icd10cm/v3/doc.html)
 
-## Premium Version
+## Premium Version (still being built)
 
 This is the free version of Healthcare MCP Server with usage limits. For advanced features and higher usage limits, check out our premium version:
 
@@ -382,8 +382,6 @@ This is the free version of Healthcare MCP Server with usage limits. For advance
 - **Advanced healthcare data tools**
 - **Custom integrations**
 - **Priority support**
-
-Visit [healthcaremcp.com](https://healthcaremcp.com) to learn more and sign up for a premium account.
 
 ## License
 
